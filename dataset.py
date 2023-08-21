@@ -1,7 +1,6 @@
-import os, re, spacy
+import os, spacy
 from torchtext import data
 import pandas as pd
-
 
 class MyIterator(data.Iterator):
     def create_batches(self):
