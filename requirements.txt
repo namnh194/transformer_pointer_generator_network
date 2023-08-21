@@ -1,1 +1,3 @@
 torchtext==0.6.0
+https://gitlab.com/trungtv/vi_spacy/-/raw/master/vi_core_news_lg/dist/vi_core_news_lg-0.0.1.tar.gz
+pyvi

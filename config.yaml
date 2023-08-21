@@ -1,21 +1,22 @@
 de_config:
   d_ff: 2048
   d_model: 512
-  max_seq_len: 18
+  max_seq_len: 64
   n_heads: 8
   num_layer: 6
-  vocab_size: 128
+  dropout: 0.1
 
 en_config:
   d_ff: 2048
   d_model: 512
-  max_seq_len: 30
+  max_seq_len: 256
   n_heads: 8
   num_layer: 6
-  vocab_size: 256
+  dropout: 0.1
 
 training:
-  batch_size: 8
-  num_epoch: 10
-  lr: 1e-3
-
+  batch_size: 64
+  num_epoch: 30
+  lr: 1e-4
+  print_every: 200
+  k: 5
