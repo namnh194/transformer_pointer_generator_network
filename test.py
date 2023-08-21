@@ -1,17 +1,6 @@
-import spacy
-import re
+import yaml
 
+with open("config.yaml", "r") as yamlfile:
+    data = yaml.load(yamlfile, Loader=yaml.FullLoader)
 
-class tokenize(object):
-
-    def __init__(self, lang):
-        self.nlp = spacy.load(lang)
-
-    def tokenizer(self, sentence):
-        sentence = re.sub(r"[\*\"“”\n\\…\+\-\/\=\(\)‘•:\[\]\|’\!;]", " ", str(sentence))
-        sentence = re.sub(r"[ ]+", " ", sentence)
-        sentence = re.sub(r"\!+", "!", sentence)
-        sentence = re.sub(r"\,+", ",", sentence)
-        sentence = re.sub(r"\?+", "?", sentence)
-        sentence = sentence.lower()
-        return [tok.text for tok in self.nlp.tokenizer(sentence) if tok.text != " "]
+print(data)
