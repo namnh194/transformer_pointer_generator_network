@@ -53,8 +53,8 @@ def create_fields(src_lang, trg_lang):
     t_src = tokenize(src_lang)
     t_trg = tokenize(trg_lang)
 
-    TRG = data.Field(lower=False, tokenize=t_trg.tokenizer, init_token='<sos>', eos_token='<eos>', fix_length=64)
-    SRC = data.Field(lower=False, tokenize=t_src.tokenizer, fix_length=256)
+    TRG = data.Field(lower=False, tokenize=t_trg.tokenizer, batch_first=True, init_token='<sos>', eos_token='<eos>', fix_length=64)
+    SRC = data.Field(lower=False, tokenize=t_src.tokenizer, batch_first=True, fix_length=256)
 
     return SRC, TRG
 
