@@ -47,22 +47,20 @@ def read_data(dataset, mode, src_field, trg_field):
     trg_data = dataset[mode][trg_field]
     return src_data, trg_data
 
-def create_fields(src_lang, trg_lang):
+def create_fields(src_lang, trg_lang, en_max_strlen, de_max_strlen):
     print("loading spacy tokenizers...")
 
     t_src = tokenize(src_lang)
     t_trg = tokenize(trg_lang)
-
-    TRG = data.Field(lower=False, tokenize=t_trg.tokenizer, batch_first=True, init_token='<sos>', eos_token='<eos>', fix_length=64)
-    SRC = data.Field(lower=False, tokenize=t_src.tokenizer, batch_first=True, fix_length=256)
+    
+    SRC = data.Field(lower=False, tokenize=t_src.tokenizer, fix_length=en_max_strlen)
+    TRG = data.Field(lower=False, tokenize=t_trg.tokenizer, init_token='<sos>', eos_token='<eos>', fix_length=de_max_strlen)
 
     return SRC, TRG
 
 
-def create_dataset(src_data, trg_data, en_max_strlen, de_max_strlen, batchsize, device, SRC, TRG, istrain=True):
+def create_dataset(src_data, trg_data, batchsize, device, SRC, TRG, istrain=True):
     print("creating dataset and iterator... ")
-    #     src_data = [' '.join(i.split()[:en_max_strlen]) if len(i.split())>en_max_strlen else i for i in src_data]
-    #     trg_data = [' '.join(i.split()[:de_max_strlen]) if len(i.split())>de_max_strlen else i for i in trg_data]
     raw_data = {'src': [line for line in src_data], 'trg': [line for line in trg_data]}
     df = pd.DataFrame(raw_data, columns=["src", "trg"])
     df.to_csv("translate_transformer_temp.csv", index=False)
