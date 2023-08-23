@@ -2,7 +2,6 @@ import math, torch, re, datasets
 import numpy as np
 from torch.autograd import Variable
 import torch.nn.functional as F
-from nltk.corpus import wordnet
 
 
 def nopeak_mask(size, device):
@@ -34,12 +33,12 @@ def create_masks(src, trg, src_pad, trg_pad, device):
     return src_mask, trg_mask
 
 def get_synonym(word, SRC):
-    syns = wordnet.synsets(word)
-    for s in syns:
-        for l in s.lemmas():
-            if SRC.vocab.stoi[l.name()] != 0:
-                return SRC.vocab.stoi[l.name()]
-    return 0
+    if SRC.vocab.stoi[word] == 0:
+        word = word.replace(' ', '_')
+        if SRC.vocab.stoi[word] == 0:
+            word = word.replace('_',' ')
+            word = '_'.join(word.split())
+    return SRC.vocab.stoi[word]
 
 def multiple_replace(dict, text):
     # Create a regular expression  from the dictionary keys
@@ -61,7 +60,7 @@ def init_vars(src, model, SRC, TRG, device, k, max_len):
 
     trg_mask = nopeak_mask(1, device)
     # dự đoán kí tự đầu tiên
-    out = model.out(model.decoder(outputs, e_output, src_mask, trg_mask))
+    out = model.fc(model.decoder(outputs, e_output, src_mask, trg_mask))
     out = F.softmax(out, dim=-1)
 
     probs, ix = out[:, -1].data.topk(k)
@@ -103,7 +102,7 @@ def beam_search(src, model, SRC, TRG, device, k, max_len):
 
         trg_mask = nopeak_mask(i, device)
 
-        out = model.out(model.decoder(outputs[:, :i],
+        out = model.fc(model.decoder(outputs[:, :i],
                                       e_outputs, src_mask, trg_mask))
 
         out = F.softmax(out, dim=-1)
@@ -111,7 +110,9 @@ def beam_search(src, model, SRC, TRG, device, k, max_len):
         outputs, log_scores = k_best_outputs(outputs, out, log_scores, i, k)
 
         ones = (outputs == eos_tok).nonzero()  # Occurrences of end symbols for all input sentences.
-        sentence_lengths = torch.zeros(len(outputs), dtype=torch.long).cuda()
+        sentence_lengths = torch.zeros(len(outputs), dtype=torch.long)
+        if device != 'cpu':
+            sentence_lengths.cuda()
         for vec in ones:
             i = vec[0]
             if sentence_lengths[i] == 0:  # First end symbol has not been found yet
@@ -138,7 +139,9 @@ def beam_search(src, model, SRC, TRG, device, k, max_len):
 def translate_sentence(sentence, model, SRC, TRG, device, k, max_len):
     model.eval()
     indexed = []
-    sentence = SRC.preprocess(sentence)
+    sentence = SRC.tokenize(sentence)
+    if len(sentence) > max_len:
+        sentence = sentence[:max_len]
 
     for tok in sentence:
         if SRC.vocab.stoi[tok] != SRC.vocab.stoi['<eos>']:

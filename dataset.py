@@ -20,7 +20,6 @@ class MyIterator(data.Iterator):
                                 self.batch_size_fn):
                 self.batches.append(sorted(b, key=self.sort_key))
 
-
 global max_src_in_batch, max_tgt_in_batch
 
 
