@@ -274,14 +274,14 @@ if __name__ == '__main__':
     batch_size = config["training"]["batch_size"]
     en_seq_len = en_config["max_seq_len"]
     de_seq_len = de_config["max_seq_len"]
-    en_vocab_size = en_config["vocab_size"]
-    de_vocab_size = de_config["vocab_size"]
+    en_config["vocab_size"] = 100
+    de_config["vocab_size"] = 100
 
     net = Transformer(en_config, de_config)
     print(sum(p.numel() for p in net.parameters() if p.requires_grad))
 
-    prob_map = net(src_sent=torch.LongTensor(batch_size, en_seq_len).random_(0, en_vocab_size), \
-                   tgt_sent=torch.LongTensor(batch_size, de_seq_len).random_(0, de_vocab_size), \
+    prob_map = net(src_sent=torch.LongTensor(batch_size, en_seq_len).random_(0, en_config["vocab_size"]), \
+                   tgt_sent=torch.LongTensor(batch_size, de_seq_len).random_(0, de_config["vocab_size"]), \
                    src_mask=torch.randn(batch_size, 1, en_seq_len), \
                    tgt_mask=torch.randn(batch_size, 1, de_seq_len))
     print(prob_map.shape)

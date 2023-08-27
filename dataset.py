@@ -46,14 +46,13 @@ def read_data(dataset, mode, src_field, trg_field):
     trg_data = dataset[mode][trg_field]
     return src_data, trg_data
 
-def create_fields(src_lang, trg_lang, en_max_strlen, de_max_strlen):
+def create_fields(lang, en_max_strlen, de_max_strlen):
     print("loading spacy tokenizers...")
 
-    t_src = tokenize(src_lang)
-    t_trg = tokenize(trg_lang)
+    tokenizer = tokenize(lang)
     
-    SRC = data.Field(lower=False, tokenize=t_src.tokenizer, fix_length=en_max_strlen)
-    TRG = data.Field(lower=False, tokenize=t_trg.tokenizer, init_token='<sos>', eos_token='<eos>', fix_length=de_max_strlen)
+    SRC = data.Field(lower=False, tokenize=tokenizer.tokenizer, fix_length=en_max_strlen)
+    TRG = data.Field(lower=False, tokenize=tokenizer.tokenizer, init_token='<sos>', eos_token='<eos>', fix_length=de_max_strlen)
 
     return SRC, TRG
 
@@ -64,6 +63,11 @@ def create_dataset(src_data, trg_data, batchsize, device, SRC, TRG, istrain=True
     df = pd.DataFrame(raw_data, columns=["src", "trg"])
     df.to_csv("translate_transformer_temp.csv", index=False)
 
+    vocab = {'vocab': [line for line in src_data + trg_data]}
+    vocab = pd.DataFrame(vocab, columns=["vocab"])
+    vocab.to_csv("vocab.csv", index=False)
+    vocab = data.TabularDataset('./vocab.csv', format='csv', fields=[('vocab', SRC), ('vocab', TRG)])
+
     data_fields = [('src', SRC), ('trg', TRG)]
     train = data.TabularDataset('./translate_transformer_temp.csv', format='csv', fields=data_fields)
 
@@ -71,9 +75,10 @@ def create_dataset(src_data, trg_data, batchsize, device, SRC, TRG, istrain=True
                             repeat=False, sort_key=lambda x: (len(x.src), len(x.trg)),
                             batch_size_fn=batch_size_fn, train=istrain, shuffle=True)
     os.remove('translate_transformer_temp.csv')
+    os.remove('vocab.csv')
 
     if istrain:
-        SRC.build_vocab(train)
-        TRG.build_vocab(train)
+        SRC.build_vocab(vocab)
+        TRG.build_vocab(vocab)
 
     return train_iter
