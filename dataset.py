@@ -35,29 +35,31 @@ def batch_size_fn(new, count, sofar):
     tgt_elements = count * max_tgt_in_batch
     return max(src_elements, tgt_elements)
 
+
 class tokenize(object):
     def __init__(self, lang):
         self.nlp = spacy.load(lang)
+
     def tokenizer(self, sentence):
         return [tok.text for tok in self.nlp.tokenizer(sentence) if tok.text != " "]
+
 
 def read_data(dataset, mode, src_field, trg_field):
     src_data = dataset[mode][src_field]
     trg_data = dataset[mode][trg_field]
     return src_data, trg_data
 
-def create_fields(lang, en_max_strlen, de_max_strlen):
+
+def create_fields(lang):
     print("loading spacy tokenizers...")
 
     tokenizer = tokenize(lang)
-    
-    SRC = data.Field(lower=False, tokenize=tokenizer.tokenizer, fix_length=en_max_strlen)
-    TRG = data.Field(lower=False, tokenize=tokenizer.tokenizer, init_token='<sos>', eos_token='<eos>', fix_length=de_max_strlen)
+    tokenizer = data.Field(lower=False, tokenize=tokenizer.tokenizer, init_token='<sos>', eos_token='<eos>')
 
-    return SRC, TRG
+    return tokenizer
 
 
-def create_dataset(src_data, trg_data, batchsize, device, SRC, TRG, istrain=True):
+def create_dataset(src_data, trg_data, batchsize, device, tokenizer, istrain=True):
     print("creating dataset and iterator... ")
     raw_data = {'src': [line for line in src_data], 'trg': [line for line in trg_data]}
     df = pd.DataFrame(raw_data, columns=["src", "trg"])
@@ -66,9 +68,9 @@ def create_dataset(src_data, trg_data, batchsize, device, SRC, TRG, istrain=True
     vocab = {'vocab': [line for line in src_data + trg_data]}
     vocab = pd.DataFrame(vocab, columns=["vocab"])
     vocab.to_csv("vocab.csv", index=False)
-    vocab = data.TabularDataset('./vocab.csv', format='csv', fields=[('vocab', SRC), ('vocab', TRG)])
+    vocab = data.TabularDataset('./vocab.csv', format='csv', fields=[('vocab', tokenizer)])
 
-    data_fields = [('src', SRC), ('trg', TRG)]
+    data_fields = [('src', tokenizer), ('trg', tokenizer)]
     train = data.TabularDataset('./translate_transformer_temp.csv', format='csv', fields=data_fields)
 
     train_iter = MyIterator(train, batch_size=batchsize, device=device,
@@ -78,7 +80,6 @@ def create_dataset(src_data, trg_data, batchsize, device, SRC, TRG, istrain=True
     os.remove('vocab.csv')
 
     if istrain:
-        SRC.build_vocab(vocab)
-        TRG.build_vocab(vocab)
+        tokenizer.build_vocab(vocab)
 
     return train_iter

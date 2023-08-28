@@ -32,13 +32,13 @@ def create_masks(src, trg, src_pad, trg_pad, device):
         trg_mask = None
     return src_mask, trg_mask
 
-def get_synonym(word, SRC):
-    if SRC.vocab.stoi[word] == 0:
+def get_synonym(word, tokenizer):
+    if tokenizer.vocab.stoi[word] == 0:
         word = word.replace(' ', '_')
-        if SRC.vocab.stoi[word] == 0:
+        if tokenizer.vocab.stoi[word] == 0:
             word = word.replace('_',' ')
             word = '_'.join(word.split())
-    return SRC.vocab.stoi[word]
+    return tokenizer.vocab.stoi[word]
 
 def multiple_replace(dict, text):
     # Create a regular expression  from the dictionary keys
@@ -47,9 +47,9 @@ def multiple_replace(dict, text):
     # For each match, look-up corresponding value in dictionary
     return regex.sub(lambda mo: dict[mo.string[mo.start():mo.end()]], text)
 
-def init_vars(src, model, SRC, TRG, device, k, max_len):
-    init_tok = TRG.vocab.stoi['<sos>']
-    src_mask = (src != SRC.vocab.stoi['<pad>']).unsqueeze(-2)
+def init_vars(src, model, tokenizer, device, k, max_len):
+    init_tok = tokenizer.vocab.stoi['<sos>']
+    src_mask = (src != tokenizer.vocab.stoi['<pad>']).unsqueeze(-2)
 
     # tính sẵn output của encoder
     e_output = model.encoder(src, src_mask)
@@ -93,17 +93,16 @@ def k_best_outputs(outputs, out, log_scores, i, k):
 
     return outputs, log_scores
 
-def beam_search(src, model, SRC, TRG, device, k, max_len):
-    outputs, e_outputs, log_scores = init_vars(src, model, SRC, TRG, device, k, max_len)
-    eos_tok = TRG.vocab.stoi['<eos>']
-    src_mask = (src != SRC.vocab.stoi['<pad>']).unsqueeze(-2)
+def beam_search(src, model, tokenizer, device, k, max_len):
+    outputs, e_outputs, log_scores = init_vars(src, model, tokenizer, device, k, max_len)
+    eos_tok = tokenizer.vocab.stoi['<eos>']
+    src_mask = (src != tokenizer.vocab.stoi['<pad>']).unsqueeze(-2)
     ind = None
     for i in range(2, max_len):
 
         trg_mask = nopeak_mask(i, device)
 
-        out = model.fc(model.decoder(outputs[:, :i],
-                                      e_outputs, src_mask, trg_mask))
+        out = model.fc(model.decoder(outputs[:, :i], e_outputs, src_mask, trg_mask))
 
         out = F.softmax(out, dim=-1)
 
@@ -130,38 +129,38 @@ def beam_search(src, model, SRC, TRG, device, k, max_len):
     if ind is None:
 
         length = (outputs[0] == eos_tok).nonzero()[0] if len((outputs[0] == eos_tok).nonzero()) > 0 else -1
-        return ' '.join([TRG.vocab.itos[tok] for tok in outputs[0][1:length]])
+        return ' '.join([tokenizer.vocab.itos[tok] for tok in outputs[0][1:length]])
 
     else:
         length = (outputs[ind] == eos_tok).nonzero()[0]
-        return ' '.join([TRG.vocab.itos[tok] for tok in outputs[ind][1:length]])
+        return ' '.join([tokenizer.vocab.itos[tok] for tok in outputs[ind][1:length]])
 
-def translate_sentence(sentence, model, SRC, TRG, device, k, max_len):
+def translate_sentence(sentence, model, tokenizer, device, k, max_len):
     model.eval()
     indexed = []
-    sentence = SRC.tokenize(sentence)
+    sentence = tokenizer.tokenize(sentence)
     if len(sentence) > max_len:
         sentence = sentence[:max_len]
 
     for tok in sentence:
-        if SRC.vocab.stoi[tok] != SRC.vocab.stoi['<eos>']:
-            indexed.append(SRC.vocab.stoi[tok])
+        if tokenizer.vocab.stoi[tok] != tokenizer.vocab.stoi['<eos>']:
+            indexed.append(tokenizer.vocab.stoi[tok])
         else:
-            indexed.append(get_synonym(tok, SRC))
+            indexed.append(get_synonym(tok, tokenizer))
 
     sentence = Variable(torch.LongTensor([indexed]))
 
     sentence = sentence.to(device)
 
-    sentence = beam_search(sentence, model, SRC, TRG, device, k, max_len)
+    sentence = beam_search(sentence, model, tokenizer, device, k, max_len)
 
     return multiple_replace({' ?': '?', ' !': '!', ' .': '.', '\' ': '\'', ' ,': ','}, sentence)
 
 rouge = datasets.load_metric("rouge")
-def rouge_score(valid_src_data, valid_trg_data, model, SRC, TRG, device, k, max_strlen):
+def rouge_score(valid_src_data, valid_trg_data, model, tokenizer, device, k, max_strlen):
     pred_sents = []
     for sentence in valid_src_data:
-        pred_trg = translate_sentence(sentence, model, SRC, TRG, device, k, max_strlen)
+        pred_trg = translate_sentence(sentence, model, tokenizer, device, k, max_strlen)
         pred_sents.append(pred_trg)
 
     pred_sents = [sent.split() for sent in pred_sents]

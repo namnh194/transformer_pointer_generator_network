@@ -1,15 +1,15 @@
-de_config:
-  d_ff: 2048
+en_config:
   d_model: 512
-  max_seq_len: 64
+  d_ff: 2048
+  max_seq_len: 256
   n_heads: 8
   num_layer: 6
   dropout: 0.1
 
-en_config:
-  d_ff: 2048
+de_config:
   d_model: 512
-  max_seq_len: 256
+  d_ff: 2048
+  max_seq_len: 64
   n_heads: 8
   num_layer: 6
   dropout: 0.1

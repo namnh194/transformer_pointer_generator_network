@@ -17,6 +17,7 @@ class Embedder(nn.Module):
         embed = self.embedding(x)
         return embed
 
+
 class PosisionalEncoder(nn.Module):
     def __init__(self, d_model=768, max_seq_len=256, dropout=0.1):
         super(PosisionalEncoder, self).__init__()
@@ -106,6 +107,7 @@ class Norm(nn.Module):
                / (x.std(dim=-1, keepdim=True) + self.eps) + self.bias
         return norm
 
+
 class FeedForward(nn.Module):
     def __init__(self, d_model=512, d_ff=2048, dropout=0.1):
         super(FeedForward, self).__init__()
@@ -116,9 +118,11 @@ class FeedForward(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(d_ff, d_model))
+
     def forward(self, x):
         out = self.ff(x)
         return out
+
 
 class EncoderBlock(nn.Module):
     def __init__(self, d_model, n_heads, d_ff, dropout=0.1):
@@ -129,6 +133,7 @@ class EncoderBlock(nn.Module):
         self.ff = FeedForward(d_model, d_ff, dropout)
         self.dropout_1 = nn.Dropout(dropout)
         self.dropout_2 = nn.Dropout(dropout)
+
     def forward(self, x, mask):
         """
         Parameters:
@@ -189,49 +194,48 @@ class DecoderBlock(nn.Module):
         x = x + self.dropout_3(self.ff(x_norm))
         return x
 
+
 def get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
+
 class Encoder(nn.Module):
-    def __init__(self, vocab_size, max_seq_len, d_model, n_heads, d_ff, num_layer, dropout=0.1):
+    def __init__(self, d_model, n_heads, d_ff, num_layer, dropout=0.1, **kwargs):
         super(Encoder, self).__init__()
         self.N = num_layer
-        self.embed = Embedder(vocab_size, d_model)
-        self.pe = PosisionalEncoder(d_model, max_seq_len, dropout)
         self.layers = get_clones(EncoderBlock(d_model, n_heads, d_ff, dropout), num_layer)
         self.norm = Norm(d_model)
+
     def forward(self, x, mask):
         """
         Parameters:
         -----------
-        x: tensor, token idx of input sents
-            shape `(batch_size, seq_len)`
+        x: tensor, sents representation
+            shape `(batch_size, seq_len, d_model)`
         mask: tensor, shape `(batch_size, 1, seq_len)`
         Return:
         -------
         out: tensor, shape `(batch_size, seq_len, d_model)`
         """
-        out = self.embed(x)
-        out = self.pe(out)
         for i in range(self.N):
-            out = self.layers[i](out, mask)
-        out = self.norm(out)
+            x = self.layers[i](x, mask)
+        out = self.norm(x)
         return out
 
+
 class Decoder(nn.Module):
-    def __init__(self, vocab_size, max_seq_len, d_model, n_heads, d_ff, num_layer, dropout=0.1):
+    def __init__(self, d_model, n_heads, d_ff, num_layer, dropout=0.1, **kwargs):
         super(Decoder, self).__init__()
         self.N = num_layer
-        self.embed = Embedder(vocab_size, d_model)
-        self.pe = PosisionalEncoder(d_model, max_seq_len, dropout)
         self.layers = get_clones(DecoderBlock(d_model, n_heads, d_ff, dropout), num_layer)
         self.norm = Norm(d_model)
+
     def forward(self, x, encoder_output, src_mask, tgt_mask):
         """
         Parameters:
         -----------
-        x: tensor, token idx of input sents
-            shape `(batch_size, seq_len)`
+        x: tensor, sents representation
+            shape `(batch_size, seq_len, d_model)`
         encoder_output: tensor, contextual embedding for input sents
             shape `(batch_size, seq_len, d_model)`
         src_mask: tensor, shape `(batch_size, 1, seq_len)`
@@ -246,42 +250,50 @@ class Decoder(nn.Module):
         -------
         out: contextual embedding of whole predicted sents
         """
-        out = self.embed(x)
-        out = self.pe(out)
         for i in range(self.N):
-            out = self.layers[i](out, encoder_output, src_mask, tgt_mask)
-        out = self.norm(out)
+            x = self.layers[i](x, encoder_output, src_mask, tgt_mask)
+        out = self.norm(x)
         return out
 
+
 class Transformer(nn.Module):
-    def __init__(self, en_config, de_config):
+    def __init__(self, vocab_size: int, en_config: dict, de_config: dict, **kwargs):
         super(Transformer, self).__init__()
+        assert en_config['d_model'] == de_config['d_model']
+        d_model = en_config['d_model']
+
+        self.embed = Embedder(vocab_size, d_model)
+        self.encoder_pe = PosisionalEncoder(d_model, en_config['max_seq_len'], en_config['dropout'])
+        self.decoder_pe = PosisionalEncoder(d_model, de_config['max_seq_len'], de_config['dropout'])
+
         self.encoder = Encoder(**en_config)
         self.decoder = Decoder(**de_config)
-        self.fc = nn.Linear(de_config["d_model"], de_config["vocab_size"])
+        self.fc = nn.Linear(d_model, vocab_size)
+
     def forward(self, src_sent, tgt_sent, src_mask, tgt_mask):
+        src_sent = self.encoder_pe(self.embed(src_sent))
+        tgt_sent = self.decoder_pe(self.embed(tgt_sent))
+
         encoder_output = self.encoder(src_sent, src_mask)
         decoder_output = self.decoder(tgt_sent, encoder_output, src_mask, tgt_mask)
         out = self.fc(decoder_output)
         return out
 
+
 if __name__ == '__main__':
     with open("config.yaml", "r") as yamlfile:
         config = yaml.load(yamlfile, Loader=yaml.FullLoader)
 
-    en_config = config["en_config"]
-    de_config = config["de_config"]
-    batch_size = config["training"]["batch_size"]
-    en_seq_len = en_config["max_seq_len"]
-    de_seq_len = de_config["max_seq_len"]
-    en_config["vocab_size"] = 100
-    de_config["vocab_size"] = 100
+    en_config = config['en_config']
+    de_config = config['de_config']
+    vocab_size = 500
+    batch_size = 8
 
-    net = Transformer(en_config, de_config)
+    net = Transformer(vocab_size, en_config, de_config)
     print(sum(p.numel() for p in net.parameters() if p.requires_grad))
 
-    prob_map = net(src_sent=torch.LongTensor(batch_size, en_seq_len).random_(0, en_config["vocab_size"]), \
-                   tgt_sent=torch.LongTensor(batch_size, de_seq_len).random_(0, de_config["vocab_size"]), \
-                   src_mask=torch.randn(batch_size, 1, en_seq_len), \
-                   tgt_mask=torch.randn(batch_size, 1, de_seq_len))
+    prob_map = net(src_sent=torch.LongTensor(batch_size, en_config['max_seq_len']).random_(0, vocab_size), \
+                   tgt_sent=torch.LongTensor(batch_size, de_config['max_seq_len']).random_(0, vocab_size), \
+                   src_mask=torch.randn(batch_size, 1, en_config['max_seq_len']), \
+                   tgt_mask=torch.randn(batch_size, 1, de_config['max_seq_len']))
     print(prob_map.shape)
